@@ -1,0 +1,15 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Warming up (model load + first inference)...
+
+Loading weights:   0%|          | 0/199 [00:00<?, ?it/s]
+Loading weights: 100%|##########| 199/199 [00:00<00:00, 6351.67it/s]
+
+Ran 50 queries
+
+stage            avg     p50     p95     p99   (ms)
+embed          16.37   15.67   21.22   34.51
+search         19.84   19.22   25.31   28.61
+total          36.21   34.93   44.16   57.60
+
+Latency budget: 50.0ms | p95 total: 44.16ms
+PASS: within budget

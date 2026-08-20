@@ -1,0 +1,5 @@
+# Runtime dependencies for hybrid multilingual retrieval.
+# The semantic model is optional at runtime: indexes built without it retain the
+# deterministic hashing-vector and BM25 fallback.
+sentence-transformers>=6.0.0
+numpy>=2.0.0

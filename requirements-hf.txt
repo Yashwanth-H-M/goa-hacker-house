@@ -1,0 +1,2 @@
+# Required only for --dataset ai4bharat/MSMARCO-XI ingestion.
+datasets>=3.0.0,<5.0.0

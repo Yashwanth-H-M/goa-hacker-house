@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#07111f" />
+    <title>Contextline — Voice RAG</title>
+    <link rel="stylesheet" href="/app.css" />
+  </head>
+  <body>
+    <div class="ambient ambient-one"></div>
+    <div class="ambient ambient-two"></div>
+    <main class="shell">
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="Contextline home">
+          <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span>CONTEXTLINE</span>
+        </a>
+        <div class="system-status" id="system-status" aria-live="polite">
+          <span class="status-dot"></span>
+          <span>Checking local system</span>
+        </div>
+      </header>
+
+      <section class="hero" aria-labelledby="page-title">
+        <p class="eyebrow">HH GOA 2026 · VOICE-ENABLED RAG</p>
+        <h1 id="page-title">Ask with your voice.<br /><em>Answer from evidence.</em></h1>
+        <p class="hero-copy">
+          A grounded retrieval workspace for the competition corpus. Every answer is tied to the passages that support it.
+        </p>
+      </section>
+
+      <section class="workspace" aria-label="RAG query workspace">
+        <form class="query-panel" id="query-form">
+          <div class="panel-heading">
+            <div>
+              <p class="panel-kicker">QUERY</p>
+              <h2>What would you like to know?</h2>
+            </div>
+            <div class="panel-controls">
+              <label class="language-picker" for="language">
+                <span>Corpus language</span>
+                <select id="language" name="language">
+                  <option value="hi">Hindi</option>
+                  <option value="kn">Kannada</option>
+                  <option value="te">Telugu</option>
+                </select>
+              </label>
+              <label class="generation-toggle" title="Uses your configured generation provider after retrieval">
+                <input id="generate" type="checkbox" checked />
+                <span class="toggle-track" aria-hidden="true"><span></span></span>
+                <span>Generate answer</span>
+              </label>
+            </div>
+          </div>
+
+          <label class="sr-only" for="question">Question</label>
+          <textarea id="question" name="question" maxlength="1200" placeholder="Ask a question about the indexed corpus…" required></textarea>
+          <div class="query-actions">
+            <p id="recording-status" class="microcopy">Type a question or record up to 30 seconds of audio.</p>
+            <div class="buttons">
+              <button class="button button-secondary" id="record-button" type="button">
+                <span class="record-icon" aria-hidden="true"></span>
+                <span id="record-label">Record voice</span>
+              </button>
+              <button class="button button-primary" id="submit-button" type="submit">
+                <span>Ask the corpus</span>
+                <span class="arrow" aria-hidden="true">↗</span>
+              </button>
+            </div>
+          </div>
+        </form>
+
+        <aside class="principles" aria-label="System principles">
+          <p class="panel-kicker">SYSTEM PROMISE</p>
+          <ol>
+            <li><span>01</span><p><strong>Retrieve first</strong>Search the corpus before any answer is generated.</p></li>
+            <li><span>02</span><p><strong>Verify sources</strong>Only returned chunk identifiers can support an answer.</p></li>
+            <li><span>03</span><p><strong>Refuse honestly</strong>Low-confidence retrieval cannot become a confident answer.</p></li>
+          </ol>
+        </aside>
+      </section>
+
+      <section class="result-panel is-empty" id="result-panel" aria-live="polite" aria-labelledby="result-title">
+        <div class="result-header">
+          <div>
+            <p class="panel-kicker">GROUNDED RESPONSE</p>
+            <h2 id="result-title">Awaiting your question</h2>
+          </div>
+          <div class="result-badges" id="result-badges"></div>
+        </div>
+        <div class="empty-state" id="empty-state">
+          <div class="empty-orbit" aria-hidden="true"><span></span></div>
+          <p>Results, citations, and pipeline timings will appear here.</p>
+        </div>
+        <div id="response-content" hidden>
+          <p class="transcript" id="transcript" hidden></p>
+          <p class="answer" id="answer"></p>
+          <div class="metrics" id="metrics"></div>
+          <section class="sources" aria-labelledby="sources-title">
+            <div class="source-title-row">
+              <h3 id="sources-title">Retrieved evidence</h3>
+              <span id="source-count"></span>
+            </div>
+            <div id="source-list" class="source-list"></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="configuration-note" id="configuration-note" hidden>
+        <div><p class="panel-kicker">CONFIGURATION NEEDED</p><h2>Provider credentials are not configured yet.</h2></div>
+        <p>Add the required keys to the project’s local <code>.env</code> file, restart the server, and try again. Keys are never requested in this browser interface.</p>
+      </section>
+
+      <footer>
+        <span>LOCAL INTERFACE · DATA STAYS ON THIS MACHINE EXCEPT AUDIO/CONTEXT SENT TO CONFIGURED PROVIDERS</span>
+        <span id="index-count"></span>
+      </footer>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>

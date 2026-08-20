@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+
+# Credentials and local configuration
+.env
+
+# Downloaded data, built indexes, and regenerated local evidence
+cache/
+data/
+index/
+eval/results/
+artifacts/*.json
+artifacts/evaluation/*
+!artifacts/evaluation/chunking_strategy_comparison.md
+!artifacts/evaluation/e5_small_multilingual_quality.md
+!artifacts/evaluation/lightweight_model_research.md
+!artifacts/evaluation/live_text_api_benchmark_e5.md
+!artifacts/evaluation/official_benchmark_e5_final_submission_check.txt
+!artifacts/evaluation/official_benchmark_e5_run1.txt
+!artifacts/evaluation/official_benchmark_e5_run2.txt
+!artifacts/evaluation/official_benchmark_e5_run3.txt
+!artifacts/evaluation/semantic_multilingual_benchmark_optimized.md
+*.log
+
+# OS/editor artifacts
+.DS_Store
+.vscode/
