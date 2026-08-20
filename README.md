@@ -184,6 +184,18 @@ Deploy the current Python service as a single backend-plus-web process. Use a Py
 
 Supabase can support Auth, PostgreSQL, file storage, and optional future vector storage. It should not replace the running Python retrieval service in the current submission configuration.
 
+### Vercel frontend demonstration
+
+`vercel.json` publishes the static `web/` directory to Vercel. When the frontend is opened on Vercel without a configured public backend, it intentionally disables query and voice controls and states that the retrieval API is not connected. This is an accurate public interface demonstration, not a deployed RAG service.
+
+After deploying the Python service separately, update `web/app-config.js` with its public HTTPS origin, for example:
+
+```javascript
+window.CONTEXTLINE_API_BASE_URL = "https://contextline-api.example.com";
+```
+
+The Python service must then allow the Vercel domain through CORS and retain all provider keys only in its server-side environment. Re-run the multilingual and official benchmarks against the public deployment before describing the full RAG application as live.
+
 ## Documentation
 
 | Document | Description |

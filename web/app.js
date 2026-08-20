@@ -20,7 +20,19 @@ const elements = {
   metrics: document.querySelector('#metrics'),
   sourceCount: document.querySelector('#source-count'),
   sourceList: document.querySelector('#source-list'),
+  deploymentStatus: document.querySelector('#deployment-status'),
 };
+
+const configuredApiBaseUrl = String(window.CONTEXTLINE_API_BASE_URL || '').replace(/\/$/, '');
+const isLocalPythonOrigin = ['127.0.0.1', 'localhost', '::1'].includes(window.location.hostname);
+const apiBaseUrl = configuredApiBaseUrl || (isLocalPythonOrigin ? '' : null);
+
+function apiUrl(path) {
+  if (apiBaseUrl === null) {
+    throw new Error('The live retrieval API has not been connected to this frontend yet.');
+  }
+  return `${apiBaseUrl}${path}`;
+}
 
 let mediaRecorder = null;
 let activeStream = null;
@@ -136,7 +148,7 @@ async function parseResponse(response) {
 
 async function submitText(question) {
   const startedAt = performance.now();
-  const response = await fetch('/api/query', {
+  const response = await fetch(apiUrl('/api/query'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ question, language: elements.language.value, generate: elements.generate.checked, top_k: 5 }),
@@ -149,7 +161,7 @@ async function submitText(question) {
 async function submitAudio(blob) {
   const startedAt = performance.now();
   const parameters = new URLSearchParams({ generate: String(elements.generate.checked), top_k: '5', language: elements.language.value });
-  const response = await fetch(`/api/voice-query?${parameters.toString()}`, {
+  const response = await fetch(apiUrl(`/api/voice-query?${parameters.toString()}`), {
     method: 'POST',
     headers: {
       'Content-Type': blob.type || 'audio/webm',
@@ -209,12 +221,31 @@ function stopRecording() {
   }
 }
 
+function showFrontendOnlyState() {
+  elements.systemStatus.className = 'system-status error';
+  elements.systemStatus.lastElementChild.textContent = 'Frontend demo online · retrieval API not connected';
+  elements.indexCount.textContent = 'CONNECT A PUBLIC PYTHON API TO ENABLE HINDI, KANNADA, AND TELUGU QUERIES';
+  elements.deploymentStatus.textContent = 'PUBLIC FRONTEND DEMO · LIVE RETRIEVAL, VOICE, AND GENERATION REQUIRE THE PYTHON BACKEND';
+  elements.submit.disabled = true;
+  elements.record.disabled = true;
+  elements.question.disabled = true;
+  elements.generate.disabled = true;
+  elements.language.disabled = true;
+  elements.configuration.hidden = false;
+  elements.configuration.querySelector('h2').textContent = 'The public retrieval backend has not been deployed yet.';
+  elements.configuration.querySelector('p').innerHTML = 'This Vercel link publishes the Contextline interface. Deploy the Python service, then set <code>window.CONTEXTLINE_API_BASE_URL</code> in <code>web/app-config.js</code> to its public HTTPS URL before calling it a fully live RAG application.';
+}
+
 async function checkHealth() {
+  if (apiBaseUrl === null) {
+    showFrontendOnlyState();
+    return;
+  }
   try {
-    const response = await fetch('/api/health', { cache: 'no-store' });
+    const response = await fetch(apiUrl('/api/health'), { cache: 'no-store' });
     const health = await parseResponse(response);
     elements.systemStatus.className = 'system-status ready';
-    elements.systemStatus.lastElementChild.textContent = 'Local retrieval ready';
+    elements.systemStatus.lastElementChild.textContent = apiBaseUrl ? 'Public retrieval ready' : 'Local retrieval ready';
     const languages = health.languages || {};
     const available = Object.keys(languages);
     for (const option of elements.language.options) {
