@@ -4,7 +4,6 @@ FROM python:3.11-slim
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PORT=8000 \
     HOST=0.0.0.0 \
     INDEX_DIR=index/semantic_multilingual
 
@@ -23,14 +22,8 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy application source code, web frontend, and pre-built vector index
 COPY src/ ./src/
 COPY web/ ./web/
-COPY index/ ./index/
-
-# Expose port
-EXPOSE 8000
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD curl -f http://localhost:${PORT}/api/health || exit 1
+COPY index/semantic_multilingual/ ./index/semantic_multilingual/
+COPY main.py .
 
 # Start the unified web & RAG service
-CMD ["python", "-m", "src.serve"]
+CMD ["python", "main.py"]
