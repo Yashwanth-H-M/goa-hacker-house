@@ -1,0 +1,38 @@
+{
+  "dataset": "ai4bharat/MSMARCO-XI",
+  "source": "frozen official validation JSONL slice",
+  "semantic_model": "intfloat/multilingual-e5-small",
+  "strategy": "sentence",
+  "languages": [
+    {
+      "language": "hi",
+      "display_name": "Hindi",
+      "records": 9988,
+      "chunks": 11240,
+      "strategy": "sentence",
+      "semantic_model": "intfloat/multilingual-e5-small",
+      "index_artifact": "index\\e5_small_multilingual\\hi\\index.json",
+      "elapsed_ms": 444425.43
+    },
+    {
+      "language": "kn",
+      "display_name": "Kannada",
+      "records": 9988,
+      "chunks": 10177,
+      "strategy": "sentence",
+      "semantic_model": "intfloat/multilingual-e5-small",
+      "index_artifact": "index\\e5_small_multilingual\\kn\\index.json",
+      "elapsed_ms": 334768.557
+    },
+    {
+      "language": "te",
+      "display_name": "Telugu",
+      "records": 9988,
+      "chunks": 10237,
+      "strategy": "sentence",
+      "semantic_model": "intfloat/multilingual-e5-small",
+      "index_artifact": "index\\e5_small_multilingual\\te\\index.json",
+      "elapsed_ms": 1361028.618
+    }
+  ]
+}

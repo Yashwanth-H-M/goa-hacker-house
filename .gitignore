@@ -10,7 +10,8 @@ __pycache__/
 # Downloaded data, built indexes, and regenerated local evidence
 cache/
 data/
-index/
+index/*
+!index/semantic_multilingual/
 eval/results/
 artifacts/*.json
 artifacts/evaluation/*
