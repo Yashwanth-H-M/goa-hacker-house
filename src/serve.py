@@ -250,16 +250,19 @@ def make_handler(indexes: dict[str, HybridIndex], settings: Settings) -> type[Ba
     return RAGRequestHandler
 
 
-def run_server(index_dir: str | Path, host: str = "127.0.0.1", port: int = 8000) -> None:
+def run_server(index_dir: str | Path, host: str = "0.0.0.0", port: int = 8000) -> None:
+    print(f"Starting Contextline server on {host}:{port} with index path: {index_dir}")
     indexes = load_language_indexes(index_dir)
-    # Load the shared query encoder before accepting traffic so the first user
-    # request is not distorted by one-time model initialization latency.
-    for index in indexes.values():
-        index.warm_up()
+    print(f"Successfully loaded indexes for languages: {', '.join(indexes)}")
+    for lang, index in indexes.items():
+        try:
+            index.warm_up()
+            print(f"Warmed up model for language index '{lang}' ({len(index.chunks)} chunks).")
+        except Exception as exc:
+            print(f"Warning: Deferring warmup for language '{lang}': {exc}")
+
     server = ThreadingHTTPServer((host, port), make_handler(indexes, DEFAULT_SETTINGS))
-    print(f"HH Goa RAG interface running at http://{host}:{port}")
-    print(f"Ready language indexes: {', '.join(indexes)}")
-    print("Press Ctrl+C to stop the local server.")
+    print(f"HH Goa RAG interface listening live at http://{host}:{port}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
@@ -271,7 +274,11 @@ def run_server(index_dir: str | Path, host: str = "127.0.0.1", port: int = 8000)
 def build_parser() -> argparse.ArgumentParser:
     default_index = os.getenv("INDEX_DIR", "index/semantic_multilingual")
     default_host = os.getenv("HOST", "0.0.0.0")
-    default_port = int(os.getenv("PORT", "8000"))
+    raw_port = os.getenv("PORT", "8000").strip()
+    try:
+        default_port = int(raw_port)
+    except (TypeError, ValueError):
+        default_port = 8000
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--index-dir", default=default_index, help="Single index directory or multilingual index root.")
