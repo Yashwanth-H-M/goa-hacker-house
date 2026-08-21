@@ -3,10 +3,19 @@
 from __future__ import annotations
 
 import argparse
+import gc
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
+
+# Limit CPU worker thread pool memory overhead for 512MB RAM cloud environments
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+
 from pathlib import Path
 from time import perf_counter
 from typing import Any
@@ -254,12 +263,7 @@ def run_server(index_dir: str | Path, host: str = "0.0.0.0", port: int = 8000) -
     print(f"Starting Contextline server on {host}:{port} with index path: {index_dir}")
     indexes = load_language_indexes(index_dir)
     print(f"Successfully loaded indexes for languages: {', '.join(indexes)}")
-    for lang, index in indexes.items():
-        try:
-            index.warm_up()
-            print(f"Warmed up model for language index '{lang}' ({len(index.chunks)} chunks).")
-        except Exception as exc:
-            print(f"Warning: Deferring warmup for language '{lang}': {exc}")
+    gc.collect()
 
     server = ThreadingHTTPServer((host, port), make_handler(indexes, DEFAULT_SETTINGS))
     print(f"HH Goa RAG interface listening live at http://{host}:{port}")
