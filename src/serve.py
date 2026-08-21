@@ -6,6 +6,7 @@ import argparse
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import os
 from pathlib import Path
 from time import perf_counter
 from typing import Any
@@ -48,6 +49,7 @@ def _serve_file(handler: BaseHTTPRequestHandler, filename: str, content_type: st
     handler.send_header("Content-Type", content_type)
     handler.send_header("Content-Length", str(len(payload)))
     handler.send_header("Cache-Control", "no-store")
+    handler.send_header("Access-Control-Allow-Origin", "*")
     handler.end_headers()
     handler.wfile.write(payload)
 
@@ -114,6 +116,9 @@ def make_handler(indexes: dict[str, HybridIndex], settings: Settings) -> type[Ba
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("Content-Length", str(len(encoded)))
             self.send_header("Cache-Control", "no-store")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "*")
             self.end_headers()
             self.wfile.write(encoded)
 
@@ -133,6 +138,13 @@ def make_handler(indexes: dict[str, HybridIndex], settings: Settings) -> type[Ba
             if size > MAX_AUDIO_BYTES:
                 raise ValueError("Audio upload exceeds the 20 MB local limit.")
             return self.rfile.read(size)
+
+        def do_OPTIONS(self) -> None:  # noqa: N802
+            self.send_response(HTTPStatus.NO_CONTENT)
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "*")
+            self.end_headers()
 
         def do_GET(self) -> None:  # noqa: N802
             path = urlparse(self.path).path
@@ -257,10 +269,14 @@ def run_server(index_dir: str | Path, host: str = "127.0.0.1", port: int = 8000)
 
 
 def build_parser() -> argparse.ArgumentParser:
+    default_index = os.getenv("INDEX_DIR", "index/semantic_multilingual")
+    default_host = os.getenv("HOST", "0.0.0.0")
+    default_port = int(os.getenv("PORT", "8000"))
+
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--index-dir", required=True, help="Single index directory or multilingual index root.")
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--index-dir", default=default_index, help="Single index directory or multilingual index root.")
+    parser.add_argument("--host", default=default_host, help="Host address to bind.")
+    parser.add_argument("--port", type=int, default=default_port, help="Port to listen on.")
     return parser
 
 
