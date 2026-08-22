@@ -17,6 +17,7 @@ os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
 
 from pathlib import Path
+from threading import Event, RLock, Thread
 from time import perf_counter
 from typing import Any
 from urllib.parse import parse_qs, urlparse
@@ -30,6 +31,34 @@ from src.retrieval import HybridIndex
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 WEB_ROOT = PROJECT_ROOT / "web"
 MAX_AUDIO_BYTES = 20 * 1024 * 1024
+
+
+class ServiceState:
+    """Thread-safe startup state shared by the HTTP handler and index loader."""
+
+    def __init__(self) -> None:
+        self._lock = RLock()
+        self._ready = Event()
+        self._indexes: dict[str, HybridIndex] = {}
+        self._startup_error: str | None = None
+
+    @property
+    def ready(self) -> bool:
+        return self._ready.is_set()
+
+    def mark_ready(self, indexes: dict[str, HybridIndex]) -> None:
+        with self._lock:
+            self._indexes = indexes
+            self._startup_error = None
+            self._ready.set()
+
+    def mark_failed(self, error: BaseException) -> None:
+        with self._lock:
+            self._startup_error = f"{type(error).__name__}: {error}"
+
+    def snapshot(self) -> tuple[dict[str, HybridIndex], str | None]:
+        with self._lock:
+            return dict(self._indexes), self._startup_error
 
 
 def _safe_int(value: Any, default: int, minimum: int, maximum: int) -> int:
@@ -85,32 +114,31 @@ def load_language_indexes(index_dir: str | Path) -> dict[str, HybridIndex]:
     )
 
 
-def make_handler(indexes: dict[str, HybridIndex], settings: Settings) -> type[BaseHTTPRequestHandler]:
+def make_handler(state: ServiceState, settings: Settings) -> type[BaseHTTPRequestHandler]:
     generator = OpenAICompatibleGenerator(
         api_key=settings.openai_api_key,
         base_url=settings.openai_base_url,
         model=settings.openai_model,
     )
     transcriber = SarvamTranscriber(api_key=settings.sarvam_api_key, model=settings.sarvam_model)
-    pipelines = {
-        language: TextRAGPipeline(
+    def selected_language(value: Any) -> tuple[LanguageOption, TextRAGPipeline]:
+        if not state.ready:
+            raise RuntimeError("The service is still initializing. Please retry shortly.")
+        indexes, _ = state.snapshot()
+        requested = str(value or DEFAULT_LANGUAGE_ORDER[0])
+        option = require_supported_language(requested)
+        try:
+            index = indexes[option.config]
+        except KeyError as exc:
+            available = ", ".join(indexes)
+            raise ValueError(f"The {option.display_name} index is not ready. Available indexes: {available}.") from exc
+        return option, TextRAGPipeline(
             index=index,
             minimum_similarity=settings.minimum_similarity,
             minimum_semantic_similarity=settings.minimum_semantic_similarity,
             minimum_semantic_margin=settings.minimum_semantic_margin,
             generator=generator,
         )
-        for language, index in indexes.items()
-    }
-
-    def selected_language(value: Any) -> tuple[LanguageOption, TextRAGPipeline]:
-        requested = str(value or DEFAULT_LANGUAGE_ORDER[0])
-        option = require_supported_language(requested)
-        try:
-            return option, pipelines[option.config]
-        except KeyError as exc:
-            available = ", ".join(pipelines)
-            raise ValueError(f"The {option.display_name} index is not ready. Available indexes: {available}.") from exc
 
     class RAGRequestHandler(BaseHTTPRequestHandler):
         server_version = "HHGoaRAG/0.2"
@@ -164,6 +192,7 @@ def make_handler(indexes: dict[str, HybridIndex], settings: Settings) -> type[Ba
             elif path == "/app.js":
                 _serve_file(self, "app.js", "application/javascript; charset=utf-8")
             elif path == "/api/health":
+                indexes, startup_error = state.snapshot()
                 language_status = {
                     language: {
                         "display_name": require_supported_language(language).display_name,
@@ -171,17 +200,26 @@ def make_handler(indexes: dict[str, HybridIndex], settings: Settings) -> type[Ba
                     }
                     for language, index in indexes.items()
                 }
-                self._json(
-                    HTTPStatus.OK,
-                    {
-                        "status": "ok",
-                        "languages": language_status,
-                        "providers": {
-                            "sarvam_stt": transcriber.configured,
-                            "grounded_generation": generator.configured,
-                        },
+                if startup_error:
+                    status = "error"
+                    response_status = HTTPStatus.SERVICE_UNAVAILABLE
+                elif state.ready:
+                    status = "ok"
+                    response_status = HTTPStatus.OK
+                else:
+                    status = "starting"
+                    response_status = HTTPStatus.OK
+                payload = {
+                    "status": status,
+                    "languages": language_status,
+                    "providers": {
+                        "sarvam_stt": transcriber.configured,
+                        "grounded_generation": generator.configured,
                     },
-                )
+                }
+                if startup_error:
+                    payload["startup_error"] = startup_error
+                self._json(response_status, payload)
             else:
                 self._error(HTTPStatus.NOT_FOUND, "Route not found.")
 
@@ -214,6 +252,8 @@ def make_handler(indexes: dict[str, HybridIndex], settings: Settings) -> type[Ba
                 response["language_display_name"] = option.display_name
                 response["latency_ms"]["api_end_to_end"] = round((perf_counter() - request_start) * 1000, 3)
                 self._json(HTTPStatus.OK, response)
+            except RuntimeError as exc:
+                self._error(HTTPStatus.SERVICE_UNAVAILABLE, str(exc))
             except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
                 self._error(HTTPStatus.BAD_REQUEST, str(exc))
             except Exception:
@@ -261,11 +301,20 @@ def make_handler(indexes: dict[str, HybridIndex], settings: Settings) -> type[Ba
 
 def run_server(index_dir: str | Path, host: str = "0.0.0.0", port: int = 8000) -> None:
     print(f"Starting Contextline server on {host}:{port} with index path: {index_dir}")
-    indexes = load_language_indexes(index_dir)
-    print(f"Successfully loaded indexes for languages: {', '.join(indexes)}")
-    gc.collect()
+    state = ServiceState()
+    server = ThreadingHTTPServer((host, port), make_handler(state, DEFAULT_SETTINGS))
 
-    server = ThreadingHTTPServer((host, port), make_handler(indexes, DEFAULT_SETTINGS))
+    def initialize_indexes() -> None:
+        try:
+            indexes = load_language_indexes(index_dir)
+            gc.collect()
+            state.mark_ready(indexes)
+            print(f"Successfully loaded indexes for languages: {', '.join(indexes)}")
+        except Exception as error:
+            state.mark_failed(error)
+            print(f"Contextline startup failed: {type(error).__name__}: {error}", flush=True)
+
+    Thread(target=initialize_indexes, name="contextline-index-loader", daemon=True).start()
     print(f"HH Goa RAG interface listening live at http://{host}:{port}")
     try:
         server.serve_forever()
