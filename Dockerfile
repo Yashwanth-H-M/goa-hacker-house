@@ -5,12 +5,13 @@ FROM python:3.11-slim
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     HOST=0.0.0.0 \
-    INDEX_DIR=index/semantic_multilingual
+    INDEX_DIR=index/semantic_multilingual \
+    RAG_LOW_MEMORY_MODE=1
 
 WORKDIR /app
 
-# Install only CPU-compatible runtime dependencies. This avoids the large CUDA/NVIDIA
-# packages that PyTorch may otherwise install in a generic Linux image.
+# Low-memory Railway mode runs lexical BM25 retrieval without loading PyTorch or
+# sentence-transformers, avoiding both multi-gigabyte image layers and OOM restarts.
 COPY requirements-railway.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements-railway.txt

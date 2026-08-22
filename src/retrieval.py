@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
 import re
 from threading import RLock
@@ -66,16 +67,16 @@ class BM25Index:
         self.chunks = list(chunks)
         self.k1 = k1
         self.b = b
-        self.documents = [tokenize(chunk.text) for chunk in self.chunks]
-        self.document_lengths = [len(document) for document in self.documents]
-        self.average_document_length = sum(self.document_lengths) / len(self.document_lengths) if self.document_lengths else 0.0
-        self.term_frequencies = [Counter(document) for document in self.documents]
+        self.document_lengths: list[int] = []
         self.document_frequencies: Counter[str] = Counter()
         self.postings: dict[str, list[tuple[int, int]]] = defaultdict(list)
-        for index, frequencies in enumerate(self.term_frequencies):
+        for index, chunk in enumerate(self.chunks):
+            frequencies = Counter(tokenize(chunk.text))
+            self.document_lengths.append(sum(frequencies.values()))
             self.document_frequencies.update(frequencies.keys())
             for token, frequency in frequencies.items():
                 self.postings[token].append((index, frequency))
+        self.average_document_length = sum(self.document_lengths) / len(self.document_lengths) if self.document_lengths else 0.0
 
     def score(self, query: str) -> list[float]:
         if not self.chunks:
@@ -122,6 +123,12 @@ class SearchResult:
         }
 
 
+def _low_memory_mode() -> bool:
+    """Return whether the deployment should prioritize low memory over semantic ranking."""
+
+    return os.getenv("RAG_LOW_MEMORY_MODE", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 class HybridIndex:
     """Fuse local Indic semantic vectors, deterministic vectors, and BM25 with RRF.
 
@@ -146,11 +153,14 @@ class HybridIndex:
         self.chunks = list(chunks)
         self.dimensions = dimensions
         self.rrf_k = rrf_k
+        self.low_memory_mode = _low_memory_mode()
         self.encoder = HashingEncoder(dimensions)
-        self.vectors = [self.encoder.encode(chunk.text) for chunk in self.chunks]
-        self._dense_matrix = self._as_dense_matrix(self.vectors)
+        # Cloud free tiers may have only 512 MB RAM. Avoid retaining the large
+        # per-document hashing matrix in low-memory mode; BM25 remains available.
+        self.vectors = [] if self.low_memory_mode else [self.encoder.encode(chunk.text) for chunk in self.chunks]
+        self._dense_matrix = None if self.low_memory_mode else self._as_dense_matrix(self.vectors)
         self.bm25 = BM25Index(self.chunks)
-        self.semantic_model_name = semantic_model.strip() if semantic_model else None
+        self.semantic_model_name = None if self.low_memory_mode else (semantic_model.strip() if semantic_model else None)
         self._semantic_model = None
         self._semantic_lock = RLock()
         self.semantic_vectors = None
@@ -295,13 +305,17 @@ class HybridIndex:
         embedding_ms = (perf_counter() - embedding_started) * 1000
 
         retrieval_started = perf_counter()
-        dense_scores = (
-            (self._dense_matrix @ query_vector).tolist()
-            if self._dense_matrix is not None
-            else [cosine_similarity(query_vector, vector) for vector in self.vectors]
-        )
+        if self.low_memory_mode:
+            dense_scores = [0.0] * len(self.chunks)
+            dense_ranked: list[int] = []
+        else:
+            dense_scores = (
+                (self._dense_matrix @ query_vector).tolist()
+                if self._dense_matrix is not None
+                else [cosine_similarity(query_vector, vector) for vector in self.vectors]
+            )
+            dense_ranked = self._rank_indices(dense_scores, candidate_k)
         sparse_scores = self.bm25.score(query)
-        dense_ranked = self._rank_indices(dense_scores, candidate_k)
         sparse_ranked = self._rank_indices(sparse_scores, candidate_k)
 
         semantic_ranked: list[int] = []
@@ -383,6 +397,9 @@ class HybridIndex:
         semantic_vectors = None
         semantic_model = payload.get("semantic_model") if format_version == cls.FORMAT_VERSION else None
         semantic_vectors_file = payload.get("semantic_vectors_file") if format_version == cls.FORMAT_VERSION else None
+        if _low_memory_mode():
+            semantic_model = None
+            semantic_vectors_file = None
         if semantic_model and semantic_vectors_file:
             try:
                 import numpy as np
