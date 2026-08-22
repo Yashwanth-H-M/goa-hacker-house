@@ -29,3 +29,5 @@ artifacts/evaluation/*
 # OS/editor artifacts
 .DS_Store
 .vscode/
+
+.vercel

@@ -1,0 +1,17 @@
+# Ignore backend and local evaluation files
+.venv/
+index/
+data/
+eval/
+tests/
+tools/
+artifacts/
+models/
+*.log
+*.pid
+.env
+.dockerignore
+Dockerfile
+Procfile
+railway.json
+render.yaml
