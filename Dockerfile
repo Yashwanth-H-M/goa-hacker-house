@@ -9,15 +9,11 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Python dependencies
-COPY requirements.txt .
+# Install only CPU-compatible runtime dependencies. This avoids the large CUDA/NVIDIA
+# packages that PyTorch may otherwise install in a generic Linux image.
+COPY requirements-railway.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements-railway.txt
 
 # Copy application source code, web frontend, and pre-built vector index
 COPY src/ ./src/

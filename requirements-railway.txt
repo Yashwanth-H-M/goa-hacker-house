@@ -1,0 +1,8 @@
+# Railway production dependencies.
+# Install PyTorch from the CPU-only wheel index to avoid bundled CUDA/NVIDIA libraries.
+--index-url https://download.pytorch.org/whl/cpu
+--extra-index-url https://pypi.org/simple
+
+torch==2.13.0+cpu
+sentence-transformers==6.0.0
+numpy==2.5.2
