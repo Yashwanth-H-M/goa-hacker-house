@@ -5,4 +5,4 @@
 
 torch==2.13.0+cpu
 sentence-transformers==6.0.0
-numpy==2.5.2
+numpy==2.4.6
